@@ -1,17 +1,18 @@
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::quote;
+use quote::{quote, ToTokens as _};
 use structmeta::{NameArgs, StructMeta};
 use syn::{
     parse::{Parse, ParseStream},
     parse_macro_input,
     punctuated::Punctuated,
     spanned::Spanned as _,
-    token::{Brace, Colon},
-    AttrStyle, Attribute, DataStruct, DeriveInput, Expr, ExprStruct, Field, FieldValue, Index,
-    Member, Path, PathSegment,
+    token::{Brace, Colon, Comma},
+    AttrStyle, Attribute, DataEnum, DataStruct, DeriveInput, Expr, ExprStruct, Field, FieldValue,
+    Index, Member, Path, PathSegment, Variant,
 };
 
 // TODO: https://docs.rs/proc-macro-crate/latest/proc_macro_crate/
+// TODO: https://crates.io/crates/parse-variants
 
 #[proc_macro_derive(Arbitrary, attributes(arbitrary))]
 pub fn derive_arbitrary(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -25,24 +26,53 @@ fn expand_arbitrary(input: DeriveInput) -> syn::Result<TokenStream> {
     let struct_name = input.ident.clone();
     let gen_name = &quote!(g);
     let ctor = match input.data {
-        syn::Data::Struct(DataStruct { fields, .. }) => ExprStruct {
-            attrs: vec![],
-            qself: None,
-            path: path_of_ident(struct_name.clone()),
-            brace_token: Brace::default(),
-            fields: fields
+        syn::Data::Struct(DataStruct { fields, .. }) => expr_struct(
+            path_of_idents([struct_name.clone()]),
+            fields
                 .into_iter()
                 .enumerate()
                 .map(|(ix, field)| field_value(field, gen_name, ix))
                 .collect::<Result<_, _>>()?,
-            dot2_token: None,
-            rest: None,
-        },
-        syn::Data::Enum(_) => {
-            return Err(syn::Error::new_spanned(
-                input,
-                "#[derive(Arbitrary)] is not supported on `enum`s",
-            ))
+        )
+        .into_token_stream(),
+        syn::Data::Enum(DataEnum { variants, .. }) => {
+            let variant_ctors = variants
+                .iter()
+                .filter_map(
+                    |Variant {
+                         attrs,
+                         ident,
+                         fields,
+                         ..
+                     }| match get_arg(attrs, variants.span()) {
+                        Ok(None) => match fields
+                            .into_iter()
+                            .enumerate()
+                            .map(|(ix, field)| field_value(field.clone(), gen_name, ix))
+                            .collect()
+                        {
+                            Ok(fields) => {
+                                let variant_ctor = expr_struct(
+                                    path_of_idents([struct_name.clone(), ident.clone()]),
+                                    fields,
+                                );
+                                Some(Ok(variant_ctor))
+                            }
+                            Err(e) => Some(Err(e)),
+                        },
+                        Ok(Some(Arg::Skip)) => None,
+                        Ok(Some(Arg::Gen(arg))) => Some(Err(syn::Error::new_spanned(
+                            arg,
+                            "`gen` is not valid for enum variants",
+                        ))),
+                        Err(e) => Some(Err(e)),
+                    },
+                )
+                .collect::<Result<Vec<_>, _>>()?;
+            quote!(
+                let options = [ #(#variant_ctors,)* ];
+                #gen_name.choose(options.as_slice()).expect("no variants to choose from").clone()
+            )
         }
         syn::Data::Union(_) => {
             return Err(syn::Error::new_spanned(
@@ -83,13 +113,25 @@ fn field_value(field: Field, gen_name: &TokenStream, ix: usize) -> syn::Result<F
     })
 }
 
-fn path_of_ident(ident: Ident) -> Path {
+fn expr_struct(path: Path, fields: Punctuated<FieldValue, Comma>) -> ExprStruct {
+    ExprStruct {
+        attrs: vec![],
+        qself: None,
+        path,
+        brace_token: Brace::default(),
+        fields,
+        dot2_token: None,
+        rest: None,
+    }
+}
+
+fn path_of_idents(idents: impl IntoIterator<Item = Ident>) -> Path {
     Path {
         leading_colon: None,
-        segments: Punctuated::from_iter([PathSegment {
+        segments: Punctuated::from_iter(idents.into_iter().map(|ident| PathSegment {
             ident,
             arguments: syn::PathArguments::None,
-        }]),
+        })),
     }
 }
 
