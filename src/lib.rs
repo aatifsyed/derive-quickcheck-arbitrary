@@ -7,8 +7,8 @@ use syn::{
     punctuated::Punctuated,
     spanned::Spanned as _,
     token::{Brace, Colon},
-    AttrStyle, Attribute, DataStruct, DeriveInput, Expr, ExprStruct, FieldValue, Index, Member,
-    Path, PathSegment,
+    AttrStyle, Attribute, DataStruct, DeriveInput, Expr, ExprStruct, Field, FieldValue, Index,
+    Member, Path, PathSegment,
 };
 
 // TODO: https://docs.rs/proc-macro-crate/latest/proc_macro_crate/
@@ -33,34 +33,7 @@ fn expand_arbitrary(input: DeriveInput) -> syn::Result<TokenStream> {
             fields: fields
                 .into_iter()
                 .enumerate()
-                .map(|(ix, field)| {
-                    let custom = match get_arg(&field.attrs, field.span())? {
-                        Some(Arg::Skip) => {
-                            return Err(syn::Error::new_spanned(
-                                field,
-                                "`skip` is not valid for struct members",
-                            ))
-                        }
-                        Some(Arg::Gen(custom)) => Some(custom),
-                        None => None,
-                    };
-
-                    Ok(FieldValue {
-                        attrs: vec![],
-                        member: match field.ident {
-                            Some(name) => Member::Named(name),
-                            None => Member::Unnamed(Index::from(ix)),
-                        },
-                        colon_token: Some(Colon::default()),
-                        expr: Expr::Verbatim(
-                            custom
-                                .map(|custom| quote!((#custom)(#gen_name)))
-                                .unwrap_or_else(
-                                    || quote!(::quickcheck::Arbitrary::arbitrary(#gen_name)),
-                                ),
-                        ),
-                    })
-                })
+                .map(|(ix, field)| field_value(field, gen_name, ix))
                 .collect::<Result<_, _>>()?,
             dot2_token: None,
             rest: None,
@@ -85,6 +58,28 @@ fn expand_arbitrary(input: DeriveInput) -> syn::Result<TokenStream> {
                 #ctor
             }
         }
+    })
+}
+
+fn field_value(field: Field, gen_name: &TokenStream, ix: usize) -> syn::Result<FieldValue> {
+    let value = match get_arg(&field.attrs, field.span())? {
+        Some(Arg::Skip) => {
+            return Err(syn::Error::new_spanned(
+                field,
+                "`skip` is not valid for members",
+            ))
+        }
+        Some(Arg::Gen(custom)) => quote!((#custom)(#gen_name)),
+        None => quote!(::quickcheck::Arbitrary::arbitrary(#gen_name)),
+    };
+    Ok(FieldValue {
+        attrs: vec![],
+        member: match field.ident {
+            Some(name) => Member::Named(name),
+            None => Member::Unnamed(Index::from(ix)),
+        },
+        colon_token: Some(Colon::default()),
+        expr: Expr::Verbatim(value),
     })
 }
 

@@ -10,7 +10,7 @@ error: cannot find parameter `does_not_exist` in this scope
 5 |     #[arbitrary(does_not_exist)]
   |                 ^^^^^^^^^^^^^^
 
-error: `skip` is not valid for struct members
+error: `skip` is not valid for members
   --> trybuild/fail/bad_config.rs:11:5
    |
 11 | /     #[arbitrary(skip)]
