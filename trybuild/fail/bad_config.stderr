@@ -1,0 +1,18 @@
+error: expected arguments `gen` or `skip`
+ --> trybuild/fail/bad_config.rs:5:17
+  |
+5 |     #[arbitrary(does_not_exist)]
+  |                 ^^^^^^^^^^^^^^
+
+error: cannot find parameter `does_not_exist` in this scope
+ --> trybuild/fail/bad_config.rs:5:17
+  |
+5 |     #[arbitrary(does_not_exist)]
+  |                 ^^^^^^^^^^^^^^
+
+error: `skip` is not valid for struct members
+  --> trybuild/fail/bad_config.rs:11:5
+   |
+11 | /     #[arbitrary(skip)]
+12 | |     _bar: (),
+   | |____________^

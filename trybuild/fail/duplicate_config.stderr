@@ -1,0 +1,5 @@
+error: `#[arbitrary(...)]` can only be specified once
+ --> trybuild/fail/duplicate_config.rs:5:5
+  |
+5 |     #[arbitrary(skip)]
+  |     ^
