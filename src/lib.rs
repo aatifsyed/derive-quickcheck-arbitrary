@@ -7,7 +7,7 @@ use syn::{
     punctuated::Punctuated,
     spanned::Spanned as _,
     token::{Brace, Colon, Comma},
-    AttrStyle, Attribute, DataEnum, DataStruct, DeriveInput, Expr, ExprStruct, Field, FieldValue,
+    AttrStyle, Attribute, DataEnum, DataStruct, DeriveInput, Expr, ExprStruct, FieldValue, Fields,
     Index, Member, Path, PathSegment, Variant,
 };
 
@@ -28,32 +28,24 @@ fn expand_arbitrary(input: DeriveInput) -> syn::Result<TokenStream> {
     let ctor = match input.data {
         syn::Data::Struct(DataStruct { fields, .. }) => expr_struct(
             path_of_idents([struct_name.clone()]),
-            fields
-                .into_iter()
-                .enumerate()
-                .map(|(ix, field)| field_value(field, gen_name, ix))
-                .collect::<Result<_, _>>()?,
+            field_values(fields, gen_name)?,
         )
         .into_token_stream(),
         syn::Data::Enum(DataEnum { variants, .. }) => {
+            let span = variants.span();
             let variant_ctors = variants
-                .iter()
+                .into_iter()
                 .filter_map(
                     |Variant {
                          attrs,
                          ident,
                          fields,
                          ..
-                     }| match get_arg(attrs, variants.span()) {
-                        Ok(None) => match fields
-                            .into_iter()
-                            .enumerate()
-                            .map(|(ix, field)| field_value(field.clone(), gen_name, ix))
-                            .collect()
-                        {
+                     }| match get_arg(&attrs, span) {
+                        Ok(None) => match field_values(fields, gen_name) {
                             Ok(fields) => {
                                 let variant_ctor = expr_struct(
-                                    path_of_idents([struct_name.clone(), ident.clone()]),
+                                    path_of_idents([struct_name.clone(), ident]),
                                     fields,
                                 );
                                 Some(Ok(variant_ctor))
@@ -63,7 +55,7 @@ fn expand_arbitrary(input: DeriveInput) -> syn::Result<TokenStream> {
                         Ok(Some(Arg::Skip)) => None,
                         Ok(Some(Arg::Gen(arg))) => Some(Err(syn::Error::new_spanned(
                             arg,
-                            "`gen` is not valid for enum variants",
+                            "`gen` is not valid for enum variants", // TODO: probably could be
                         ))),
                         Err(e) => Some(Err(e)),
                     },
@@ -91,35 +83,44 @@ fn expand_arbitrary(input: DeriveInput) -> syn::Result<TokenStream> {
     })
 }
 
-fn field_value(field: Field, gen_name: &TokenStream, ix: usize) -> syn::Result<FieldValue> {
-    let value = match get_arg(&field.attrs, field.span())? {
-        Some(Arg::Skip) => {
-            return Err(syn::Error::new_spanned(
-                field,
-                "`skip` is not valid for members",
-            ))
-        }
-        Some(Arg::Gen(custom)) => quote!((#custom)(#gen_name)),
-        None => quote!(::quickcheck::Arbitrary::arbitrary(#gen_name)),
-    };
-    Ok(FieldValue {
-        attrs: vec![],
-        member: match field.ident {
-            Some(name) => Member::Named(name),
-            None => Member::Unnamed(Index::from(ix)),
-        },
-        colon_token: Some(Colon::default()),
-        expr: Expr::Verbatim(value),
-    })
+fn field_values(
+    fields: Fields,
+    gen_name: &TokenStream,
+) -> syn::Result<Punctuated<FieldValue, Comma>> {
+    fields
+        .into_iter()
+        .enumerate()
+        .map(|(ix, field)| {
+            let value = match get_arg(&field.attrs, field.span())? {
+                Some(Arg::Skip) => {
+                    return Err(syn::Error::new_spanned(
+                        field,
+                        "`skip` is not valid for members",
+                    ))
+                }
+                Some(Arg::Gen(custom)) => quote!((#custom)(#gen_name)),
+                None => quote!(::quickcheck::Arbitrary::arbitrary(#gen_name)),
+            };
+            Ok(FieldValue {
+                attrs: vec![],
+                member: match field.ident {
+                    Some(name) => Member::Named(name),
+                    None => Member::Unnamed(Index::from(ix)),
+                },
+                colon_token: Some(Colon::default()),
+                expr: Expr::Verbatim(value),
+            })
+        })
+        .collect()
 }
 
-fn expr_struct(path: Path, fields: Punctuated<FieldValue, Comma>) -> ExprStruct {
+fn expr_struct(path: Path, field_values: Punctuated<FieldValue, Comma>) -> ExprStruct {
     ExprStruct {
         attrs: vec![],
         qself: None,
         path,
         brace_token: Brace::default(),
-        fields,
+        fields: field_values,
         dot2_token: None,
         rest: None,
     }
