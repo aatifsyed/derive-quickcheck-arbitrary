@@ -7,6 +7,8 @@ struct Yak {
     _id: usize,
     #[arbitrary(gen(|_| DoesNotImplArbitrary))]
     _does_not_impl_arbitrary: DoesNotImplArbitrary,
+    #[arbitrary(gen(|_|String::new()))]
+    _empty: String,
 }
 
 #[derive(Clone, Debug)]
@@ -21,6 +23,7 @@ enum Shaver {
     Named(String),
     #[arbitrary(skip)]
     _Skipped,
+    Empty(#[arbitrary(gen(|_|String::new()))] String),
 }
 
 quickcheck! {
