@@ -1,6 +1,6 @@
 [package]
 name = "derive-quickcheck-arbitrary"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "derive quickcheck::Arbitrary"
 repository = "https://github.com/aatifsyed/derive-quickcheck-arbitrary"
