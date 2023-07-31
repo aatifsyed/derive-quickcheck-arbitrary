@@ -2,6 +2,10 @@
 name = "derive-quickcheck-arbitrary"
 version = "0.1.0"
 edition = "2021"
+description = "derive quickcheck::Arbitrary"
+repository = "https://github.com/aatifsyed/derive-quickcheck-arbitrary"
+documentation = "https://docs.rs/derive-quickcheck-arbitrary"
+license = "MIT"
 
 [lib]
 proc-macro = true
