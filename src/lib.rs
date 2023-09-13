@@ -95,10 +95,12 @@ fn expand_arbitrary(input: DeriveInput) -> syn::Result<TokenStream> {
                             Err(e) => Some(Err(e)),
                         },
                         Ok(Some(Arg::Skip)) => None,
-                        Ok(Some(Arg::Gen(arg))) => Some(Err(syn::Error::new_spanned(
-                            arg,
-                            "`gen` is not valid for enum variants", // TODO: probably could be
-                        ))),
+                        Ok(Some(Arg::Gen(_))) | Ok(Some(Arg::Default)) => {
+                            Some(Err(syn::Error::new(
+                                span,
+                                "`gen` and `default` are not valid for enum variants", // TODO: probably could be
+                            )))
+                        }
                         Err(e) => Some(Err(e)),
                     },
                 )
@@ -149,6 +151,9 @@ fn field_values(
                         (&mut *#gen_name) // call it
                     }
                 }
+                Some(Arg::Default) => {
+                    quote!(::core::default::Default::default())
+                }
                 None => quote!(::quickcheck::Arbitrary::arbitrary(#gen_name)),
             };
             Ok(FieldValue {
@@ -190,38 +195,51 @@ fn path_of_idents(idents: impl IntoIterator<Item = Ident>) -> Path {
 enum Arg {
     Skip,
     Gen(TokenStream),
+    Default,
 }
 
-#[derive(StructMeta, Debug)]
+#[derive(StructMeta, Debug, Default)]
 struct AttrArgs {
     gen: Option<NameArgs<TokenStream>>,
     skip: bool,
+    default: bool,
 }
 
 impl Parse for Arg {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut hint = syn::Error::new(input.span(), "expected arguments `gen` or `skip`");
+        let mut hint = syn::Error::new(input.span(), "expected one of  `gen`, `default` or `skip`");
         match AttrArgs::parse(input) {
+            // inner error
             Err(e) => {
                 hint.combine(e);
                 Err(hint)
             }
+            // nothing
             Ok(AttrArgs {
                 gen: None,
                 skip: false,
+                default: false,
             }) => Err(hint),
+            // just `skip`
             Ok(AttrArgs {
                 gen: None,
                 skip: true,
+                default: false,
             }) => Ok(Arg::Skip),
+            // just `gen`
             Ok(AttrArgs {
                 gen: Some(NameArgs { name_span: _, args }),
                 skip: false,
+                default: false,
             }) => Ok(Arg::Gen(args)),
+            // just `default`
             Ok(AttrArgs {
-                gen: Some(_),
-                skip: true,
-            }) => Err(hint),
+                gen: None,
+                skip: false,
+                default: true,
+            }) => Ok(Arg::Default),
+            // some combination of arguments
+            Ok(AttrArgs { .. }) => Err(hint),
         }
     }
 }
@@ -269,17 +287,24 @@ mod tests {
         assert_eq!(
             AttrArgs {
                 skip: true,
-                gen: None
+                ..Default::default()
             },
             parse_quote!(skip),
         );
         assert_eq!(
             AttrArgs {
-                skip: false,
+                default: true,
+                ..Default::default()
+            },
+            parse_quote!(default),
+        );
+        assert_eq!(
+            AttrArgs {
                 gen: Some(NameArgs {
                     name_span: Span::call_site(),
                     args: quote!(some_fn)
-                })
+                }),
+                ..Default::default()
             },
             parse_quote!(gen(some_fn)),
         );
@@ -294,14 +319,11 @@ mod tests {
 
     impl PartialEq for AttrArgs {
         fn eq(&self, other: &Self) -> bool {
-            let Self { skip, gen: custom } = self;
-            match (custom, &other.gen) {
-                (Some(left), Some(right)) => {
-                    *skip == other.skip && left.args.to_string() == right.args.to_string()
-                }
-                (None, None) => *skip == other.skip,
-                _ => false,
+            fn norm(t: &AttrArgs) -> (Option<String>, &bool, &bool) {
+                let AttrArgs { gen, skip, default } = t;
+                (gen.as_ref().map(|it| it.args.to_string()), skip, default)
             }
+            norm(self) == norm(other)
         }
     }
 }

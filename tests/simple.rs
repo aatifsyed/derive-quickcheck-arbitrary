@@ -9,6 +9,8 @@ struct Yak {
     _does_not_impl_arbitrary: DoesNotImplArbitrary,
     #[arbitrary(gen(|_|String::new()))]
     _empty: String,
+    #[arbitrary(default)]
+    defaulted: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -27,8 +29,8 @@ enum Shaver {
 }
 
 quickcheck! {
-    fn can_generate_struct(_yak: Yak) -> bool {
-        true
+    fn can_generate_struct(yak: Yak) -> () {
+        assert!(!yak.defaulted);
     }
 
     fn can_generate_enum(shaver: Shaver) -> bool {

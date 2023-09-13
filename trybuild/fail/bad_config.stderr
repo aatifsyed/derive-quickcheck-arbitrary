@@ -1,4 +1,4 @@
-error: expected arguments `gen` or `skip`
+error: expected one of  `gen`, `default` or `skip`
  --> trybuild/fail/bad_config.rs:5:17
   |
 5 |     #[arbitrary(does_not_exist)]
