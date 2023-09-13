@@ -15,7 +15,9 @@ struct Yakshaver {
 }
 ```
 
-You can customise field generation by providing a callable that accepts [`&mut quickcheck::Gen`](https://docs.rs/quickcheck/latest/quickcheck/struct.Gen.html).
+You can customise field generation by either:
+- providing a callable that accepts [`&mut quickcheck::Gen`](https://docs.rs/quickcheck/latest/quickcheck/struct.Gen.html).
+- always using the default value
 ```rust
 #[derive(Clone, Arbitrary)]
 struct Yakshaver {
@@ -23,6 +25,8 @@ struct Yakshaver {
     #[arbitrary(gen(|g| num::clamp(usize::arbitrary(g), 0, 10_000) ))]
     id: usize,
     name: String,
+    #[arbitrary(default)]
+    always_false: bool,
 }
 ```
 
@@ -36,6 +40,15 @@ enum YakType {
     Wild,
     #[arbitrary(skip)]
     Alien,
+}
+```
+
+You can add bounds for generic structs:
+```rust
+#[derive(Clone, Arbitrary)]
+#[arbitrary(where(T: Arbitrary))]
+struct GenericYak<T> {
+    name: T,
 }
 ```
 
