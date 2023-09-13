@@ -1,4 +1,4 @@
-error: expected one of  `gen`, `default` or `skip`
+error: expected one of  `gen`, `default`, `where` or `skip`
  --> trybuild/fail/bad_config.rs:5:17
   |
 5 |     #[arbitrary(does_not_exist)]
@@ -10,7 +10,7 @@ error: cannot find parameter `does_not_exist` in this scope
 5 |     #[arbitrary(does_not_exist)]
   |                 ^^^^^^^^^^^^^^
 
-error: `skip` is not valid for members
+error: `skip` and `where` are not valid for members
   --> trybuild/fail/bad_config.rs:11:5
    |
 11 | /     #[arbitrary(skip)]

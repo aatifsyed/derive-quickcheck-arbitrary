@@ -28,9 +28,20 @@ enum Shaver {
     Empty(#[arbitrary(gen(|_|String::new()))] String),
 }
 
+#[derive(Debug, Clone, Arbitrary)]
+#[arbitrary(where(T: Default + Clone + 'static))]
+struct GenericYak<T> {
+    #[arbitrary(default)]
+    inner: T,
+}
+
 quickcheck! {
     fn can_generate_struct(yak: Yak) -> () {
         assert!(!yak.defaulted);
+    }
+
+    fn can_generate_generic_struct(yak: GenericYak<String>) -> () {
+        assert!(yak.inner.is_empty());
     }
 
     fn can_generate_enum(shaver: Shaver) -> bool {
