@@ -13,7 +13,9 @@
 //! }
 //! ```
 //!
-//! You can customise field generation by providing a callable that accepts [`&mut quickcheck::Gen`](https://docs.rs/quickcheck/latest/quickcheck/struct.Gen.html).
+//! You can customise field generation by either:
+//! - providing a callable that accepts [`&mut quickcheck::Gen`](https://docs.rs/quickcheck/latest/quickcheck/struct.Gen.html).
+//! - always using the default value
 //! ```
 //! # use derive_quickcheck_arbitrary::Arbitrary;
 //! # mod num { pub fn clamp(input: usize, min: usize, max: usize) -> usize { todo!() } }
@@ -23,6 +25,8 @@
 //!     #[arbitrary(gen(|g| num::clamp(usize::arbitrary(g), 0, 10_000) ))]
 //!     id: usize,
 //!     name: String,
+//!     #[arbitrary(default)]
+//!     always_false: bool,
 //! }
 //! ```
 //!
@@ -37,6 +41,17 @@
 //!     Wild,
 //!     #[arbitrary(skip)]
 //!     Alien,
+//! }
+//! ```
+//!
+//! You can add bounds for generic structs:
+//! ```
+//! # use derive_quickcheck_arbitrary::Arbitrary;
+//! # use quickcheck::Arbitrary;
+//! #[derive(Clone, Arbitrary)]
+//! #[arbitrary(where(T: Arbitrary))]
+//! struct GenericYak<T> {
+//!     name: T,
 //! }
 //! ```
 
@@ -319,6 +334,19 @@ mod tests {
 
     use structmeta::NameArgs;
     use syn::parse_quote;
+
+    #[test]
+    fn readme() {
+        assert!(
+            std::process::Command::new("cargo")
+                .args(["rdme", "--check"])
+                .output()
+                .expect("couldn't run `cargo rdme`")
+                .status
+                .success(),
+            "README.md is out of date - bless the new version by running `cargo rdme`"
+        )
+    }
 
     #[test]
     fn attr_args() {
