@@ -140,7 +140,15 @@ fn field_values(
                         "`skip` is not valid for members",
                     ))
                 }
-                Some(Arg::Gen(custom)) => quote!((#custom)(&mut *#gen_name)),
+                Some(Arg::Gen(custom)) => {
+                    let ty = field.ty;
+                    quote! {
+                        (
+                            ( #custom ) as ( fn(&mut ::quickcheck::Gen) -> #ty )
+                        ) // cast to fn pointer
+                        (&mut *#gen_name) // call it
+                    }
+                }
                 None => quote!(::quickcheck::Arbitrary::arbitrary(#gen_name)),
             };
             Ok(FieldValue {
